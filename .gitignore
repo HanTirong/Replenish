@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+data/
+.env
+*.log
+*.tmp
+
+# Generated design screenshots
+packages/web/screenshots/

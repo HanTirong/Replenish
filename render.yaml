@@ -1,0 +1,34 @@
+# Render Blueprint. The web service stays up; due replenishment jobs run in-process.
+services:
+  - type: web
+    name: replenish-ai
+    runtime: node
+    plan: starter
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:web
+    startCommand: pnpm api
+    healthCheckPath: /v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /var/data
+      - key: REORDER_INTERVAL_MS
+        value: "900000"
+      - key: PAYMENT_PROVIDER
+        value: paypal
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: PAYPAL_RETURN_URL
+        sync: false
+      - key: PAYPAL_WEBHOOK_URL
+        sync: false
+    disk:
+      name: replenish-data
+      mountPath: /var/data
+      sizeGB: 1

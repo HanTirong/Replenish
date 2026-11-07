@@ -1,0 +1,36 @@
+/* Replenish · Round 6 design tokens */
+@font-face{font-family:"Newsreader";src:url("fonts/Newsreader.ttf") format("truetype");font-weight:200 800;font-style:normal;}
+@font-face{font-family:"Inter";src:url("fonts/Inter.ttf") format("truetype");font-weight:100 900;font-style:normal;}
+:root{
+  /* color */
+  --bg:#F6F3EE;            /* page */
+  --surface:#EEE9E1;       /* soft beige card */
+  --surface-2:#E8E2D8;     /* day tile, inset */
+  --raised:#FFFFFF;        /* sheet, input, white card */
+  --line:#E3DDD3;          /* hairline */
+  --ink:#1C1B19;           /* headline, primary text */
+  --ink-2:#5E5A54;         /* reason, secondary */
+  --ink-3:#938E86;         /* caption, disabled */
+  --teal:#1F6B63;          /* primary action */
+  --teal-press:#18564F;
+  --teal-soft:#DDEAE5;     /* Order tile, Okay, Connected */
+  --green:#2F8A68;         /* Active dot */
+  --warn:#C4562E;          /* Action needed, over-limit delta, Runs out */
+  --warn-soft:#F7E6DC;     /* Action needed pill, Runs out tile */
+  --warn-surface:#F8EDE5;  /* over-limit block */
+  --blue:#3C6A8F;          /* Delivery dot */
+  --blue-soft:#E3EAEF;     /* Delivery tile */
+  --paypal-navy:#003087;
+  --paypal-blue:#0070E0;
+  /* type */
+  --font-serif:"Newsreader",Georgia,serif;
+  --font-sans:"Inter",-apple-system,system-ui,sans-serif;
+  /* spacing (4/8) */
+  --s-1:4px;--s-2:8px;--s-3:12px;--s-4:16px;--s-5:20px;--s-6:24px;--s-8:32px;--s-10:40px;--s-12:48px;
+  /* radius */
+  --r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:24px;--r-sheet:28px;--r-pill:999px;
+  /* shadow */
+  --sh-input:0 1px 2px rgba(28,27,25,.04),0 6px 20px rgba(28,27,25,.07);
+  --sh-sheet:0 -8px 32px rgba(28,27,25,.10);
+  --sh-avatar:0 0 0 4px #FFFFFF,0 4px 16px rgba(28,27,25,.10);
+}

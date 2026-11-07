@@ -1,0 +1,70 @@
+import assert from "node:assert/strict";
+import type { AddressInfo } from "node:net";
+import path from "node:path";
+import { mkdirSync } from "node:fs";
+import { chromium } from "playwright";
+import { SqliteDatabase } from "../../api/src/db.ts";
+import { createApiServer } from "../../api/src/http.ts";
+import { HouseholdApp } from "../../api/src/service.ts";
+
+// Built mobile UI + real HTTP/SQLite; no hosted keys, AI, Telegram, store or payment calls.
+let now = new Date("2026-11-01T08:00:00Z");
+const db = new SqliteDatabase(":memory:");
+const app = new HouseholdApp({ db, env: {}, timeZone: "UTC", clock: () => now, sku: "RC-SMALL-8", priceCents: 7299,
+  payments: { query: async () => "not_found", charge: async () => { throw new Error("This verification must not request a payment"); } } });
+app.configureScheduler(900_000);
+const server = createApiServer(app, { webRoot: path.resolve("packages/web/dist") });
+await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+const browser = await chromium.launch({ headless: true, channel: process.env.SCREENSHOT_BROWSER_CHANNEL || undefined });
+const folder = path.resolve("data/verification"); mkdirSync(folder, { recursive: true });
+try {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/*", route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
+  let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
+  let posts = 0;
+  await page.route("**/v1/chat", async route => { posts++; await gate; await route.continue(); });
+  await page.goto(origin, { waitUntil: "networkidle" });
+  await page.getByLabel("Message about Qizai").fill("以后每顿少喂10g"); await page.getByRole("button", { name: "Send", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: "Conversation" });
+  await dialog.getByText("Processing your message…", { exact: true }).waitFor();
+  assert.equal(await dialog.getByLabel("Message about Qizai").isDisabled(), true);
+  await page.screenshot({ path: path.join(folder, "chat-pending.png") });
+  assert.equal(app.home().feeding.gramsPerMeal, 75); assert.equal(posts, 1);
+  release(); await dialog.getByText(/75g → 65g per meal/).waitFor();
+  await page.screenshot({ path: path.join(folder, "chat-confirmed.png") });
+  await dialog.getByRole("button", { name: "Okay", exact: true }).click();
+  await page.unroute("**/v1/chat");
+  // The server commits, but the browser loses the response. Reload must recover with GET, not another cut.
+  await page.route("**/v1/chat", async route => { posts++; await route.fetch(); await route.abort("failed"); });
+  await page.getByLabel("Message about Qizai").fill("以后每顿少喂10g"); await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByText("This result is not confirmed yet.", { exact: true }).waitFor();
+  assert.equal(app.home().feeding.gramsPerMeal, 55);
+  await page.reload({ waitUntil: "networkidle" }); dialog = page.getByRole("dialog", { name: "Conversation" });
+  await dialog.getByText("The saved result was recovered. The request was not repeated.", { exact: true }).waitFor();
+  assert.equal(app.home().feeding.gramsPerMeal, 55); assert.equal(posts, 2);
+  await page.screenshot({ path: path.join(folder, "chat-recovered.png") });
+  let undoPosts = 0;
+  await page.route("**/v1/feeding/undo", async route => { undoPosts++; await route.fetch(); await route.abort("failed"); });
+  await dialog.getByRole("button", { name: "Undo", exact: true }).click();
+  await dialog.getByText("This result is not confirmed yet.", { exact: true }).waitFor();
+  assert.equal(app.home().feeding.gramsPerMeal, 65);
+  await dialog.getByRole("button", { name: "Check latest status", exact: true }).click();
+  await dialog.getByText("The saved result was recovered. The request was not repeated.", { exact: true }).waitFor();
+  assert.equal(app.home().feeding.gramsPerMeal, 65); assert.equal(undoPosts, 1);
+  await dialog.getByRole("button", { name: "Okay", exact: true }).click();
+  const before = app.home().agentStatus.lastSucceededAt; assert.equal(before, null);
+  await page.close(); now = new Date("2026-11-01T08:15:00Z"); await app.runScheduledCheck();
+  const again = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  again.on("pageerror", error => errors.push(error.message));
+  await again.route("**/*", route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
+  await again.goto(origin, { waitUntil: "networkidle" });
+  await again.getByRole("button", { name: "View Qizai's details" }).click(); await again.getByRole("button", { name: "Replenishment plan", exact: true }).click();
+  await again.getByText("Last successful check", { exact: true }).waitFor();
+  assert.equal(app.home().agentStatus.lastSucceededAt, "2026-11-01T08:15:00.000Z");
+  await again.screenshot({ path: path.join(folder, "agent-status.png") });
+  assert.equal(await again.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.deepEqual(errors, []);
+  console.log("PASS: immediate pending feedback, committed changes, lost chat/Undo response recovery, reload, real background evidence and 390x844 layout. No external calls.");
+} finally { await browser.close(); await new Promise<void>(resolve => server.close(() => resolve())); }
